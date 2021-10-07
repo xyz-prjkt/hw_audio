@@ -362,7 +362,7 @@ static int keep_alive_cleanup()
     }
     pcm_close(ka.pcm);
     ka.pcm = NULL;
-    ka.active_devices = KEEP_ALIVE_OUT_NONE;
+    ka.active_devices = (audio_devices_t) KEEP_ALIVE_OUT_NONE;
     return 0;
 }
 
