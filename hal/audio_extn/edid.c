@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, 2016-2017, 2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2014 The Android Open Source Project
@@ -917,13 +917,13 @@ bool edid_get_sink_caps(edid_audio_info* info, char *edid_data)
 
         ALOGV("Frequency Bitmask %d\n", frequency[i]);
         info->audio_blocks_array[i].sampling_freq_bitmask = frequency[i];
-        ALOGV("info->audio_blocks_array[i].sampling_freq_bitmask %d",
+        ALOGD("info->audio_blocks_array[i].sampling_freq_bitmask %d",
               info->audio_blocks_array[i].sampling_freq_bitmask);
 
         ALOGV("BitsPerSample Bitmask %d\n", bitrate[i]);
         info->audio_blocks_array[i].bits_per_sample_bitmask =
                    get_edid_bps_byte(bitrate[i],formats[i]);
-        ALOGV("info->audio_blocks_array[i].bits_per_sample_bitmask %d",
+        ALOGD("info->audio_blocks_array[i].bits_per_sample_bitmask %d",
               info->audio_blocks_array[i].bits_per_sample_bitmask);
     }
     dump_speaker_allocation(info);

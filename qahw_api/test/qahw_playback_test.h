@@ -35,8 +35,11 @@
 #include "qahw_effect_api.h"
 #include "qahw_effect_test.h"
 
+#ifdef QAP
+#include <qap_defs.h>
+#endif
+
 #define MAX_STR_LEN 256
-typedef void* qap_module_handle_t;
 bool kpi_mode;
 bool enable_dump;
 float vol_level;
@@ -129,7 +132,9 @@ typedef struct {
     thread_data_t *ethread_data;
     cmd_data_t cmd_data;
     int bytes_to_read;
+#ifdef QAP
     qap_module_handle_t qap_module_handle;
+#endif
     bool sec_input;
     bool system_input;
     pthread_cond_t write_cond;
@@ -179,7 +184,7 @@ void hal_test_qap_usage();
 char * qap_wrapper_get_single_kvp(const char *key, const char *kv_pairs, int *status);
 int qap_wrapper_session_open(char *kv_pairs, void* stream_data, int num_of_streams,\
                               qahw_module_handle_t *qap_out_hal_handle_t);
-int qap_wrapper_session_close();
+void qap_wrapper_session_close();
 qap_module_handle_t qap_wrapper_stream_open(void* stream_data);
 char * qap_wrapper_get_cmd_string_from_arg_array(int argc, char * argv[], int *status);
 void *qap_wrapper_start_stream (void* stream_data);

@@ -108,6 +108,7 @@
 #define MAX_PERF_LOCK_OPTS 20
 
 #define MAX_STREAM_PROFILE_STR_LEN 32
+#define SILENCE_BUF_LATENCY        40000
 typedef enum {
     EFFECT_NONE = 0,
     EFFECT_AEC,
@@ -684,8 +685,7 @@ struct audio_device {
     bool adm_routing_changed;
     struct listnode audio_patch_record_list;
     unsigned int audio_patch_index;
-
-    amplifier_device_t *amp;
+    bool keep_alive_enable;
 };
 
 struct audio_patch_record {

@@ -446,6 +446,7 @@ struct string_to_enum {
 };
 
 static const struct string_to_enum channels_name_to_enum_table[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_MONO),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_2POINT1),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_QUAD),
@@ -1889,6 +1890,10 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_SURROUND;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_2POINT1;
+    case 2:
+        ALOGV("%s: HDMI supports 2 channels", __func__);
+        out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_STEREO;
+        out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_MONO;
         break;
     default:
         ALOGE("invalid/nonstandard channal count[%d]",channels);
@@ -1899,10 +1904,12 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     // check channel format caps
     i = 0;
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_AC3)) {
-        ALOGV(":%s HDMI supports AC3/EAC3 formats", __func__);
+        ALOGV(":%s HDMI supports AC3 formats", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_AC3;
-        //Adding EAC3/EAC3_JOC formats if AC3 is supported by the sink.
-        //EAC3/EAC3_JOC will be converted to AC3 for decoding if needed
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_E_AC3)) {
+        ALOGV(":%s HDMI supports EAC3 formats", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3;
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3_JOC;
     }
@@ -1927,6 +1934,21 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         out->supported_formats[i++] = AUDIO_FORMAT_IEC61937;
     }
 
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_16_BIT)) {
+        ALOGV(":%s HDMI supports LPCM_16_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_16_BIT;
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_24_BIT_PACKED)) {
+        ALOGV(":%s HDMI supports LPCM_24_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+     }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_8_24_BIT)) {
+        ALOGE(":%s HDMI supports LPCM_8_24_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_8_24_BIT;
+    }
 
     // check sample rate caps
     i = 0;
@@ -2468,6 +2490,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     struct audio_usecase *vc_usecase = NULL;
     struct audio_usecase *voip_usecase = NULL;
     struct audio_usecase *hfp_usecase = NULL;
+    struct audio_usecase *pb_usecase = NULL;
     struct stream_out stream_out;
     audio_usecase_t hfp_ucid;
     int status = 0;
@@ -2561,6 +2584,25 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                    in_snd_device = hfp_usecase->in_snd_device;
                    out_snd_device = hfp_usecase->out_snd_device;
             }
+        } else if (audio_extn_is_quad_speaker_enabled() &&
+                    (usecase->type == PCM_PLAYBACK) &&
+                    platform_check_snd_device_is_speaker(usecase->stream.out->devices)) {
+
+            if (usecase->id == USECASE_AUDIO_PLAYBACK_SILENCE)
+                out_snd_device = SND_DEVICE_OUT_SPEAKER_QUAD;
+            /*
+             * If quad speaker is enabled and deep buffer playback is going on
+             * quad speaker (stereo spkr and lineout) and if touch tones comes that
+             * will result in device switch where both LL and music are routed to
+             * spkr instead of quad spkr. To avoid switching devices for music playback
+             * choose playback device only for the other usecases also.
+             */
+            pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_DEEP_BUFFER);
+            if (pb_usecase && (pb_usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD))
+               out_snd_device = pb_usecase->out_snd_device;
+            else if ((pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_SILENCE))
+                && pb_usecase && (pb_usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD))
+                out_snd_device = pb_usecase->out_snd_device;
         }
         if (usecase->type == PCM_PLAYBACK) {
             if (usecase->stream.out == NULL) {
@@ -3482,12 +3524,13 @@ static int stop_output_stream(struct stream_out *out)
         ALOGV("Disable passthrough , reset mixer to pcm");
         /* NO_PASSTHROUGH */
         out->compr_config.codec->compr_passthr = 0;
+        out->is_iec61937_info_available = false;
         audio_extn_passthru_on_stop(out);
         audio_extn_dolby_set_dap_bypass(adev, DAP_STATE_ON);
     }
 
     /* Must be called after removing the usecase from list */
-    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
+    if ((out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) && adev->keep_alive_enable)
         audio_extn_keep_alive_start(KEEP_ALIVE_OUT_HDMI);
 
     if (out->ip_hdlr_handle) {
@@ -3671,9 +3714,9 @@ int start_output_stream(struct stream_out *out)
                                  adev->perf_lock_opts_size);
 
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-        audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_HDMI);
         if (audio_extn_passthru_is_enabled() &&
             audio_extn_passthru_is_passthrough_stream(out)) {
+            audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_HDMI);
             audio_extn_passthru_on_start(out);
         }
     }
@@ -4899,6 +4942,9 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
     size_t i, j;
     int ret;
     bool first = true;
+    audio_format_t format = AUDIO_FORMAT_DEFAULT;
+    bool is_hdmi = out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+    audio_channel_mask_t out_hdmi_channel_mask[MAX_SUPPORTED_CHANNEL_MASKS + 1] = {0};
 
     if (!query || !reply) {
         if (reply) {
@@ -4911,23 +4957,51 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
         return NULL;
     }
 
-    ALOGV("%s: %s enter: keys - %s", __func__, use_case_table[out->usecase], keys);
+    ALOGD("%s: %s enter: keys - %s", __func__, use_case_table[out->usecase], keys);
     ret = str_parms_get_str(query, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
     if (ret >= 0) {
+        ret = str_parms_get_str(query, "format", value, sizeof(value));
+        format = (audio_format_t)strtoul(value, NULL, 10);
+        ALOGD(":%s Supported channels request for format %d",__func__, format);
+
         value[0] = '\0';
-        i = 0;
-        while (out->supported_channel_masks[i] != 0) {
-            for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
-                if (channels_name_to_enum_table[j].value == out->supported_channel_masks[i]) {
-                    if (!first) {
-                        strlcat(value, "|", sizeof(value));
-                    }
-                    strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
-                    first = false;
-                    break;
-                }
+        if (is_hdmi) {
+            if (!platform_is_edid_supported_format(out->dev->platform, format))
+                return NULL;
+
+            first = true;
+            ret = platform_get_supported_channel_mask_for_format(out->dev->platform,
+                                                          &out_hdmi_channel_mask[0],
+                                                          format);
+            i = 0;
+            while (out_hdmi_channel_mask[i] != 0) {
+                   for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
+                        if (channels_name_to_enum_table[j].value == out_hdmi_channel_mask[i]) {
+                            if (!first) {
+                                strlcat(value, "|", sizeof(value));
+                            }
+                            strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
+                            first = false;
+                            break;
+                         }
+                   }
+                   i++;
             }
-            i++;
+        } else {
+            i = 0;
+            while (out->supported_channel_masks[i] != 0) {
+                for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
+                     if (channels_name_to_enum_table[j].value == out->supported_channel_masks[i]) {
+                         if (!first) {
+                             strlcat(value, "|", sizeof(value));
+                         }
+                         strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
+                         first = false;
+                         break;
+                     }
+                }
+                i++;
+            }
         }
         str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
         str = str_parms_to_str(reply);
@@ -4980,21 +5054,48 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
 
     ret = str_parms_get_str(query, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES, value, sizeof(value));
     if (ret >= 0) {
+        ret = str_parms_get_str(query, "format", value, sizeof(value));
+        format = (audio_format_t)strtoul(value, NULL, 10);
+        ALOGD(":%s Support sample rates request for format %d",__func__, format);
+
         value[0] = '\0';
-        i = 0;
-        first = true;
-        while (out->supported_sample_rates[i] != 0) {
-            for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
-                if (out_sample_rates_name_to_enum_table[j].value == out->supported_sample_rates[i]) {
-                    if (!first) {
-                        strlcat(value, "|", sizeof(value));
+        if (is_hdmi) {
+            if (!platform_is_edid_supported_format(out->dev->platform, format))
+                return NULL;
+
+            first = true;
+            for (i = 0; i < MAX_SUPPORTED_SAMPLE_RATES; i++) {
+                if (platform_is_edid_supported_sample_rate_for_format(out->dev->platform,
+                                                                out_hdmi_sample_rates[i],
+                                                                format)) {
+                    for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
+                          if (out_sample_rates_name_to_enum_table[j].value == (uint32_t)out_hdmi_sample_rates[i]) {
+                              if (!first) {
+                                  strlcat(value, "|", sizeof(value));
+                              }
+                              strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
+                              first = false;
+                              break;
+                          }
                     }
-                    strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
-                    first = false;
-                    break;
                 }
             }
-            i++;
+        } else {
+            i = 0;
+            first = true;
+            while (out->supported_sample_rates[i] != 0) {
+                   for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
+                        if (out_sample_rates_name_to_enum_table[j].value == out->supported_sample_rates[i]) {
+                            if (!first) {
+                                strlcat(value, "|", sizeof(value));
+                            }
+                            strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
+                            first = false;
+                            break;
+                        }
+                   }
+                   i++;
+            }
         }
         str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES, value);
         if (str)
@@ -5014,7 +5115,7 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
 
     str_parms_destroy(query);
     str_parms_destroy(reply);
-    ALOGV("%s: exit: returns - %s", __func__, str);
+    ALOGD("%s: exit: returns - %s", __func__, str);
     return str;
 }
 
@@ -5408,7 +5509,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     struct stream_out *out = (struct stream_out *)stream;
     struct audio_device *adev = out->dev;
     ssize_t ret = 0;
-    int channels = 0;
     const size_t frame_size = audio_stream_out_frame_size(stream);
     const size_t frames = (frame_size != 0) ? bytes / frame_size : bytes;
     struct audio_usecase *usecase = NULL;
@@ -5477,14 +5577,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                     out->stream_config_changed = false;
                     out->is_iec61937_info_available = true;
                 }
-            }
-
-            if ((channels < (int)audio_channel_count_from_out_mask(out->channel_mask)) &&
-                (out->compr_config.codec->compr_passthr == PASSTHROUGH) &&
-                (out->is_iec61937_info_available == true)) {
-                    ALOGE("%s: ERROR: Unsupported channel config in passthrough mode", __func__);
-                    ret = -EINVAL;
-                    goto exit;
             }
         }
     }
@@ -5923,7 +6015,12 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
                 int64_t signed_frames = out->written - kernel_buffer_size + avail;
                 // This adjustment accounts for buffering after app processor.
                 // It is based on estimated DSP latency per use case, rather than exact.
-                signed_frames -=
+                if(adev->keep_alive_enable)
+                    signed_frames -=
+                        ((platform_render_latency(out->usecase)+ SILENCE_BUF_LATENCY) *
+                                                        out->sample_rate / 1000000LL);
+                else
+                    signed_frames -=
                         (platform_render_latency(out->usecase) * out->sample_rate / 1000000LL);
 
                 // Adjustment accounts for A2dp encoder latency with non offload usecases
@@ -7319,8 +7416,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
     if (direct_dev &&
         (audio_is_linear_pcm(out->format) ||
-         config->format == AUDIO_FORMAT_DEFAULT) &&
-        out->flags == AUDIO_OUTPUT_FLAG_NONE) {
+         config->format == AUDIO_FORMAT_DEFAULT)) {
         audio_format_t req_format = config->format;
         audio_channel_mask_t req_channel_mask = config->channel_mask;
         uint32_t req_sample_rate = config->sample_rate;
@@ -7330,11 +7426,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             ALOGV("AUDIO_DEVICE_OUT_AUX_DIGITAL and DIRECT|OFFLOAD, check hdmi caps");
             ret = read_hdmi_sink_caps(out);
             if (config->sample_rate == 0)
-                config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+                config->sample_rate = out->supported_sample_rates[0];
             if (config->channel_mask == AUDIO_CHANNEL_NONE)
-                config->channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
+                config->channel_mask = out->supported_channel_masks[0];
             if (config->format == AUDIO_FORMAT_DEFAULT)
-                config->format = AUDIO_FORMAT_PCM_16_BIT;
+                config->format = out->supported_formats[0];
         } else if (is_usb_dev) {
             ret = read_usb_sup_params_and_compare(true /*is_playback*/,
                                                   &config->format,
@@ -7395,7 +7491,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels *
                                                          audio_bytes_per_sample(out->format));
         }
-        out->config.format = pcm_format_from_audio_format(out->format);
+        out->config.format = out->format;
     }
 
     /* validate bus device address */
@@ -8390,7 +8486,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 select_devices(adev, usecase->id);
                 ALOGD("Unmuting the stream after select_devices");
                 usecase->stream.out->a2dp_compress_mute = false;
-                out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
+                if(!(property_get_bool("vendor.audio.qap.enabled", false)))
+                    out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
                 audio_extn_a2dp_set_handoff_mode(false);
                 pthread_mutex_unlock(&usecase->stream.out->lock);
                 break;

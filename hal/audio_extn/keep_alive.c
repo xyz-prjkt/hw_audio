@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -46,6 +46,8 @@
 #endif
 
 #define SILENCE_INTERVAL 2 /*In secs*/
+#define INITIAL_INTERVAL 0.05 /*In secs*/
+#define MIN_AVR_DETECT 6
 
 typedef enum {
     STATE_DEINIT = -1,
@@ -73,7 +75,35 @@ typedef struct {
     bool done;
     void * userdata;
     audio_devices_t active_devices;
+    int cnt;
 } keep_alive_t;
+
+/* Feed -66 dB sine wave for AVR to detect signal */
+
+static char initial_sine[] = {0x0a, 0x00, 0x0c, 0x00, 0x10, 0x00, 0x10, 0x00,
+                              0x0f, 0x00, 0x0c, 0x00, 0x08, 0x00, 0x04, 0x00,
+                              0xfe, 0xff, 0xfa, 0xff, 0xf5, 0xff, 0xf2, 0xff,
+                              0xf0, 0xff, 0xf0, 0xff, 0xf2, 0xff, 0xf5, 0xff,
+                              0xfa, 0xff, 0xfe, 0xff, 0x04, 0x00, 0x08, 0x00,
+                              0x0c, 0x00, 0x0f, 0x00, 0x10, 0x00, 0x10, 0x00,
+                              0x0c, 0x00, 0x0a, 0x00, 0x04, 0x00, 0x00, 0x00,
+                              0xfa, 0xff, 0xf6, 0xff, 0xf2, 0xff, 0xf0, 0xff,
+                              0xf0, 0xff, 0xf1, 0xff, 0xf5, 0xff, 0xf8, 0xff,
+                              0xfe, 0xff, 0x02, 0x00, 0x08, 0x00, 0x0b, 0x00,
+                              0x0f, 0x00, 0x10, 0x00, 0x10, 0x00, 0x0e, 0x00,
+                              0x0a, 0x00, 0x06, 0x00, 0x00, 0x00, 0xfc, 0xff,
+                              0xf6, 0xff, 0xf4, 0xff, 0xf0, 0xff, 0xf0, 0xff,
+                              0xf1, 0xff, 0xf4, 0xff, 0xf8, 0xff, 0xfc, 0xff,
+                              0x02, 0x00, 0x06, 0x00, 0x0b, 0x00, 0x0e, 0x00,
+                              0x10, 0x00, 0x10, 0x00, 0x0e, 0x00, 0x0b, 0x00,
+                              0x06, 0x00, 0x02, 0x00, 0xfc, 0xff, 0xf8, 0xff,
+                              0xf4, 0xff, 0xf1, 0xff, 0xf0, 0xff, 0xf0, 0xff,
+                              0xf4, 0xff, 0xf6, 0xff, 0xfc, 0xff, 0x00, 0x00,
+                              0x06, 0x00, 0x0a, 0x00, 0x0e, 0x00, 0x10, 0x00,
+                              0x10, 0x00, 0x0f, 0x00, 0x0b, 0x00, 0x08, 0x00,
+                              0x02, 0x00, 0xfe, 0xff, 0xf8, 0xff, 0xf5, 0xff,
+                              0xf1, 0xff, 0xf0, 0xff, 0xf0, 0xff, 0xf2, 0xff,
+                              0xf6, 0xff, 0xfa, 0xff, 0x00, 0x00, 0x04, 0x00 };
 
 struct keep_alive_cmd {
     struct listnode node;
@@ -270,6 +300,7 @@ static int keep_alive_start_l()
     ka.out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     ka.out->supported_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
     ka.out->config = silence_config;
+    ka.out->bit_width =  CODEC_BACKEND_DEFAULT_BIT_WIDTH;
 
     usecase->stream.out = ka.out;
     usecase->type = PCM_PLAYBACK;
@@ -291,6 +322,8 @@ static int keep_alive_start_l()
         }
         goto exit;
     }
+
+    ka.cnt = 0;
     send_cmd_l(REQUEST_WRITE);
     while (ka.state != STATE_ACTIVE) {
         pthread_cond_wait(&ka.cond, &ka.lock);
@@ -392,8 +425,9 @@ static void * keep_alive_loop(void * context __unused)
 {
     struct keep_alive_cmd *cmd = NULL;
     struct listnode *item;
-    uint8_t * silence = NULL;
-    int32_t bytes = 0;
+    uint8_t * silence = NULL, *tmp_fp = NULL;
+    int32_t bytes = 0, i=0;
+    double silence_interval = 0.0;
     struct timespec ts;
 
     while (true) {
@@ -431,8 +465,25 @@ static void * keep_alive_loop(void * context __unused)
             silence = (uint8_t *)calloc(1, bytes);
         }
 
+        tmp_fp = silence;
+
+        /* copy 9600 bytes of sine data for avr detection */
+        for (i = 0; i < 50; i++)
+        {
+            memcpy(tmp_fp, initial_sine, sizeof(initial_sine));
+            tmp_fp  = tmp_fp + sizeof(initial_sine);
+        }
+
         while (!ka.done) {
             ALOGV("write %d bytes of silence", bytes);
+
+            if (ka.cnt == MIN_AVR_DETECT) {
+                silence = (uint8_t *)calloc(1, bytes);
+                silence_interval = SILENCE_INTERVAL;
+            } else if (ka.cnt < MIN_AVR_DETECT )
+                silence_interval = INITIAL_INTERVAL;
+
+            ka.cnt++;
             pcm_write(ka.pcm, (void *)silence, bytes);
             /* This thread does not have to write silence continuously.
              * Just something to keep the connection alive is sufficient.
@@ -440,7 +491,7 @@ static void * keep_alive_loop(void * context __unused)
              */
             pthread_mutex_lock(&ka.sleep_lock);
             clock_gettime(CLOCK_MONOTONIC, &ts);
-            ts.tv_sec += SILENCE_INTERVAL;
+            ts.tv_sec += silence_interval;
 
             if (!ka.done)
               pthread_cond_timedwait(&ka.wake_up_cond,

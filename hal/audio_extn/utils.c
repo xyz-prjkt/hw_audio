@@ -1225,8 +1225,16 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         }
         if (usecase->stream.out->flags == (audio_output_flags_t)AUDIO_OUTPUT_FLAG_INTERACTIVE)
             app_type = bd_app_type;
-        else
+        else {
+            // If quad speaker path enabled, use default app_type for usecase type
+            if (audio_extn_is_quad_speaker_enabled() &&
+                usecase->id == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER &&
+                usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD) {
+                usecase->stream.out->app_type_cfg.app_type =
+                        platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+            }
             app_type = usecase->stream.out->app_type_cfg.app_type;
+        }
         app_type_cfg[len++] = app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = sample_rate;

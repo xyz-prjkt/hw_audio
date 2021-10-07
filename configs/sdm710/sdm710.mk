@@ -76,6 +76,13 @@ AUDIO_FEATURE_ENABLED_DLKM := true
 AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
 BOARD_SUPPORTS_SOUND_TRIGGER_CPU_AFFINITY_SET := false
 BOARD_SUPPORTS_FFV_EC_THREAD_RT_PRIORITY := false
+AUDIO_FEATURE_ENABLED_MS12_ARM := true
+AUDIO_FEATURE_ENABLED_QAF := true
+AUDIO_FEATURE_ENABLED_MS12_SECURITY := false
+MM_AUDIO_IP_HDLR_ENABLED := false
+AUDIO_FEATURE_ENABLED_QAP := true
+BOARD_SUPPORTS_QAHW := true
+AUDIO_FEATURE_ENABLED_A2DP_DECODERS := true
 ##AUDIO_FEATURE_FLAGS
 
 AUDIO_HARDWARE := audio.a2dp.default
@@ -284,11 +291,14 @@ vendor.audio.dolby.ds2.hardbypass=false
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.multiple.enabled=false
+vendor.audio.offload.multiple.enabled=true
 
 #Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.passthrough=false
+vendor.audio.offload.passthrough=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.min.duration.secs=5
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -411,7 +421,35 @@ vendor.audio.feature.deepbuffer_as_primary.enable=false \
 vendor.audio.feature.vbat.enable=true \
 vendor.audio.feature.wsa.enable=false \
 vendor.audio.feature.audiozoom.enable=false \
-vendor.audio.feature.snd_mon.enable=true
+vendor.audio.feature.snd_mon.enable=true \
+vendor.audio.feature.quad_speaker.enable=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.enabled=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.dts_m8=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.library=/vendor/lib/libdolby_ms12_wrapper.so
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.reencode=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.passthrough=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.hdmi.out=ddp
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.msmd=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.qap.ecref=off
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.output.block.handling=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

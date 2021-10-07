@@ -22,6 +22,15 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libcutils
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_QAP)),true)
+LOCAL_CFLAGS += -DQAP -Wno-tautological-pointer-compare
+LOCAL_SRC_FILES += qap_wrapper_extn.c
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/qap_wrapper
+LOCAL_HEADER_LIBRARIES += audio_qaf_headers
+LOCAL_SHARED_LIBRARIES += libqap_wrapper liblog
+endif
+
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_GCOV)),true)
 LOCAL_CFLAGS += --coverage -fprofile-arcs -ftest-coverage
 LOCAL_CPPFLAGS += --coverage -fprofile-arcs -ftest-coverage

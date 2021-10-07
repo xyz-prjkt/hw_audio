@@ -100,6 +100,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
 #include <cutils/properties.h>
@@ -306,7 +307,7 @@ static bool check_stream_state(struct stream_out *out, int state)
 {
     struct qaf_module *qaf_mod = get_qaf_module_for_input_stream(out);
     int index = get_input_stream_index(out);
-    if (qaf_mod && index >= 0) return (qaf_mod->stream_state[index] == state);
+    if (qaf_mod && index >= 0) return ((int)qaf_mod->stream_state[index] == state);
     return false;
 }
 
@@ -1905,7 +1906,7 @@ static int qaf_stream_close(struct stream_out *out)
 }
 
 /* Open a MM module session with QAF. */
-static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_out *out)
+static int audio_extn_qaf_session_open(mm_module_type mod_type, __unused struct stream_out *out)
 {
     ALOGV("%s %d", __func__, __LINE__);
     unsigned char* license_data = NULL;
@@ -2749,11 +2750,11 @@ void set_hdmi_configuration_to_module()
                 if (p_qaf->qaf_msmd_enabled) {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_AND_SPK); //TODO: Need enhancement.
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_COMPR_AND_SPK); //TODO: Need enhancement.
                 } else {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_COMPR);
                 }
                 format_params = str_parms_to_str(qaf_params);
 
@@ -2784,11 +2785,11 @@ void set_hdmi_configuration_to_module()
                 if (p_qaf->qaf_msmd_enabled) {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_AND_SPK); //TODO: Need enhancement.
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_COMPR_AND_SPK); //TODO: Need enhancement.
                 } else {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_COMPR);
                 }
                 format_params = str_parms_to_str(qaf_params);
 
@@ -2820,11 +2821,11 @@ void set_hdmi_configuration_to_module()
                 if (p_qaf->qaf_msmd_enabled) {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_AND_SPK);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_MCH_AND_SPK);
                 } else {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_MCH);
                 }
                 p_qaf->hdmi_sink_channels = channels;
                 break;
@@ -2836,11 +2837,11 @@ void set_hdmi_configuration_to_module()
                 if (p_qaf->qaf_msmd_enabled) {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_AND_SPK);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_MCH_AND_SPK);
                 } else {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_MCH);
                 }
                 p_qaf->hdmi_sink_channels = channels;
                 break;
@@ -2852,7 +2853,7 @@ void set_hdmi_configuration_to_module()
                 if (p_qaf->qaf_msmd_enabled) {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,
-                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_AND_SPK);
+                                      AUDIO_QAF_PARAMETER_VALUE_DEVICE_HDMI_MCH_AND_SPK);
                 } else {
                     str_parms_add_str(qaf_params,
                                       AUDIO_QAF_PARAMETER_KEY_DEVICE,

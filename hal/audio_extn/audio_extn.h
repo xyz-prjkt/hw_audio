@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -62,16 +62,6 @@
 
 #ifndef AUDIO_DEVICE_OUT_FM_TX
 #define AUDIO_DEVICE_OUT_FM_TX 0x8000000
-#endif
-
-#ifndef AUDIO_FORMAT_AAC_LATM
-#define AUDIO_FORMAT_AAC_LATM 0x80000000UL
-#define AUDIO_FORMAT_AAC_LATM_LC   (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_LC)
-#define AUDIO_FORMAT_AAC_LATM_HE_V1 (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_HE_V1)
-#define AUDIO_FORMAT_AAC_LATM_HE_V2  (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_HE_V2)
 #endif
 
 #ifndef AUDIO_FORMAT_AC4
@@ -264,13 +254,10 @@ int32_t audio_extn_read_afe_proxy_channel_masks(struct stream_out *out);
 int32_t audio_extn_get_afe_proxy_channel_count();
 //END: AFE_PROXY_FEATURE
 
-//START: HIFI FILTER
-void audio_extn_enable_hifi_filter(struct audio_device *adev, bool value);
-void audio_extn_hifi_filter_set_params(struct str_parms *parms, char *value, int len);
-bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev,struct stream_out *out,
-                                   snd_device_t snd_device, char *codec_variant,
-                                   int channels, int usecase_init);
-//END: HIFI FILTER
+// START: QUAD SPEAKER
+void quad_speaker_feature_init(bool is_feature_enabled);
+bool audio_extn_is_quad_speaker_enabled();
+// END: QUAD SPEAKER
 
 /// ---- USB feature ---------------------------------------------------------------
 void audio_extn_usb_init(void *adev);
@@ -857,9 +844,6 @@ typedef enum {
     DAP_STATE_ON = 0,
     DAP_STATE_BYPASS,
 } dap_state;
-#ifndef AUDIO_FORMAT_E_AC3_JOC
-#define AUDIO_FORMAT_E_AC3_JOC  0x19000000UL
-#endif
 #ifndef AUDIO_FORMAT_DTS_LBR
 #define AUDIO_FORMAT_DTS_LBR 0x1E000000UL
 #endif
@@ -1112,16 +1096,10 @@ void audio_extn_fm_get_parameters(struct str_parms *query, struct str_parms *rep
 void audio_extn_fm_route_on_selected_device(struct audio_device *adev, audio_devices_t device);
 
 #ifndef APTX_DECODER_ENABLED
-#define audio_extn_aptx_dec_set_license(adev); (0)
-#define audio_extn_set_aptx_dec_bt_addr(adev, parms); (0)
 #define audio_extn_send_aptx_dec_bt_addr_to_dsp(out); (0)
-#define audio_extn_parse_aptx_dec_bt_addr(value); (0)
 #define audio_extn_set_aptx_dec_params(payload); (0)
 #else
-static void audio_extn_aptx_dec_set_license(struct audio_device *adev);
-static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct str_parms *parms);
 void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out);
-static void audio_extn_parse_aptx_dec_bt_addr(char *value);
 int audio_extn_set_aptx_dec_params(struct aptx_dec_param *payload);
 #endif
 int audio_extn_out_set_param_data(struct stream_out *out,

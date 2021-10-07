@@ -119,7 +119,7 @@ bool qap_wrapper_session_active = false;
 
 stream_config stream_param[MAX_PLAYBACK_STREAMS];
 bool event_trigger;
-
+static int ignore_hdmi_err = 0;
 /*
  * Set to a high number so it doesn't interfere with existing stream handles
  */
@@ -377,6 +377,8 @@ int async_callback(qahw_stream_callback_event_t event, void *param,
         break;
     case QAHW_STREAM_CBK_EVENT_ERROR:
         fprintf(log_file, "stream %d: received event - QAHW_STREAM_CBK_EVENT_ERROR\n", params->stream_index);
+        if ((params->output_device == AUDIO_DEVICE_OUT_HDMI) && (ignore_hdmi_err < 5))
+            break;
         stop_playback = true;
         break;
     default:
@@ -616,7 +618,6 @@ void *start_stream_playback (void* stream_data)
     ssize_t bytes_to_read = 0;
     int32_t latency;
     char kvpair[KV_PAIR_MAX_LENGTH] = {0};
-
 
     memset(&drift_params, 0, sizeof(struct drift_data));
 
@@ -876,6 +877,8 @@ void *start_stream_playback (void* stream_data)
         bytes_written = write_to_hal(params->out_handle, data_ptr+offset, bytes_remaining, params);
         if (bytes_written < 0) {
             fprintf(stderr, "write failed %d", bytes_written);
+            if (++ignore_hdmi_err < 5 && (params->output_device == AUDIO_DEVICE_OUT_HDMI))
+                continue;
             exit = true;
             continue;
         }
@@ -938,6 +941,11 @@ void *start_stream_playback (void* stream_data)
         drift_params.thread_exit = true;
         pthread_join(drift_query_thread, NULL);
     }
+
+    if (ec_ref) {
+        qahw_set_parameters(stream_param->qahw_out_hal_handle, "ecref=0");
+    }
+
     rc = qahw_out_standby(params->out_handle);
     if (rc) {
         fprintf(log_file, "stream %d: out standby failed %d \n", params->stream_index, rc);
@@ -2009,7 +2017,6 @@ int start_playback_through_qap(char * kvp_string, int num_of_streams,  qahw_modu
         }
         get_file_format(stream);
         fprintf(stdout, "Playing from:%s\n", stream->filename);
-        qap_module_handle_t qap_module_handle = NULL;
         if (!qap_wrapper_session_active) {
             rc = qap_wrapper_session_open(kvp_string, stream, num_of_streams, hal_handle);
             if (rc != 0) {
@@ -2641,6 +2648,10 @@ int main(int argc, char* argv[]) {
         if (is_dual_main && i >= 2 ) {
             stream_param[i].play_later = true;
             fprintf(log_file, "stream %d: play_later = %d\n", i, stream_param[i].play_later);
+        }
+
+        if (ec_ref) {
+            qahw_set_parameters(stream_param->qahw_out_hal_handle, "ecref=1");
         }
 
         rc = pthread_create(&playback_thread[i], NULL, start_stream_playback, (void *)&stream_param[i]);

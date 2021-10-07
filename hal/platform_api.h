@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -290,6 +290,8 @@ int platform_set_edid_channels_configuration(void *platform, int channels,
 bool platform_spkr_use_default_sample_rate(void *platform);
 unsigned char platform_map_to_edid_format(int format);
 bool platform_is_edid_supported_format(void *platform, int format);
+int platform_get_supported_channel_mask_for_format(void *platform, audio_channel_mask_t *supported_channel_masks, audio_format_t format);
+bool platform_is_edid_supported_sample_rate_for_format(void *platform, int sample_rate, audio_format_t format);
 bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate);
 void platform_cache_edid(void * platform);
 void platform_invalidate_hdmi_config(void * platform);
@@ -390,4 +392,5 @@ struct audio_custom_mtmx_in_params * platform_get_custom_mtmx_in_params(void *pl
                                     struct audio_custom_mtmx_in_params_info *info);
 int platform_add_custom_mtmx_in_params(void *platform,
                                     struct audio_custom_mtmx_in_params_info *info);
+bool platform_check_snd_device_is_speaker(snd_device_t snd_device);
 #endif // AUDIO_PLATFORM_API_H

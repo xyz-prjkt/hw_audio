@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -61,6 +61,16 @@
 #include <log_xml_parser.h>
 #define LOG_MASK HAL_MOD_FILE_AUDIO_EXTN
 #include <log_utils.h>
+#endif
+
+#ifndef APTX_DECODER_ENABLED
+#define audio_extn_aptx_dec_set_license(adev) (0)
+#define audio_extn_set_aptx_dec_bt_addr(adev, parms) (0)
+#define audio_extn_parse_aptx_dec_bt_addr(value) (0)
+#else
+static void audio_extn_aptx_dec_set_license(struct audio_device *adev);
+static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct str_parms *parms);
+static void audio_extn_parse_aptx_dec_bt_addr(char *value);
 #endif
 
 #define MAX_SLEEP_RETRY 100
@@ -192,7 +202,7 @@ static bool audio_extn_compress_in_enabled = false;
 static bool audio_extn_battery_listener_enabled = false;
 static bool audio_extn_maxx_audio_enabled = false;
 static bool audio_extn_audiozoom_enabled = false;
-static bool audio_extn_hifi_filter_enabled = false;
+static bool audio_extn_quad_speaker_enabled = false;
 
 #define AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL "aanc_noise_level"
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
@@ -533,6 +543,16 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
             info.ip_channels = backend_cfg.channels;
             info.op_channels = audio_channel_count_from_in_mask(
                                    usecase->stream.in->channel_mask);
+        }
+        /*
+         * Quad speaker device is a combo of spkr and lineout to play 4channels.
+         * So set o/p channels to 4 instead of backend cfg channels and update
+         * feature id also.
+         */
+        if (audio_extn_is_quad_speaker_enabled() &&
+            (info.snd_device == SND_DEVICE_OUT_SPEAKER_QUAD)) {
+            info.id = 1;
+            info.op_channels = 4;
         }
         params = platform_get_custom_mtmx_params(adev->platform, &info, &idx);
         if (params) {
@@ -3342,7 +3362,6 @@ int audio_extn_check_and_set_multichannel_usecase(struct audio_device *adev,
 static void audio_extn_aptx_dec_set_license(struct audio_device *adev)
 {
     int ret, key = 0;
-    char value[128] = {0};
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name = "APTX Dec License";
 
@@ -3360,7 +3379,7 @@ static void audio_extn_aptx_dec_set_license(struct audio_device *adev)
         ALOGE("%s: cannot set license, error:%d",__func__, ret);
 }
 
-static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct str_parms *parms)
+static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev __unused, struct str_parms *parms)
 {
     int ret = 0;
     char value[256];
@@ -3379,6 +3398,7 @@ int audio_extn_set_aptx_dec_params(struct aptx_dec_param *payload)
     aextnmod.addr.nap = aptx_cfg->bt_addr.nap;
     aextnmod.addr.uap = aptx_cfg->bt_addr.uap;
     aextnmod.addr.lap = aptx_cfg->bt_addr.lap;
+    return 0;
 }
 
 static void audio_extn_parse_aptx_dec_bt_addr(char *value)
@@ -3388,7 +3408,7 @@ static void audio_extn_parse_aptx_dec_bt_addr(char *value)
     uint32_t addr[3];
     int i = 0;
 
-    ALOGV("%s: value %s", __func__, value);
+    ALOGD("%s: value %s", __func__, value);
     tok = strtok_r(value, ":", &str);
     while (tok != NULL) {
         ba[i] = strtol(tok, NULL, 16);
@@ -3406,10 +3426,6 @@ static void audio_extn_parse_aptx_dec_bt_addr(char *value)
 
 void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
 {
-    char mixer_ctl_name[128];
-    struct mixer_ctl *ctl;
-    uint32_t addr[3];
-
     ALOGV("%s", __func__);
     out->compr_config.codec->options.aptx_dec.nap = aextnmod.addr.nap;
     out->compr_config.codec->options.aptx_dec.uap = aextnmod.addr.uap;
@@ -3652,16 +3668,16 @@ void hdmi_edid_feature_init(bool is_feature_enabled)
         //map each function
         //on any faliure to map any function, disble feature
         if (((hdmi_edid_is_supported_sr =
-             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_sr")) == NULL) ||
             ((hdmi_edid_is_supported_bps =
              (hdmi_edid_is_supported_bps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_bps")) == NULL) ||
             ((hdmi_edid_get_highest_supported_sr =
-             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_highest_supported_sr")) == NULL) ||
             ((hdmi_edid_get_sink_caps =
-             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_sink_caps")) == NULL)) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;
@@ -4096,7 +4112,6 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out)
         out->set_dual_mono = true;
         goto exit;
         }
-
         ALOGD("%s: i/p channel count %d, o/p channel count %d, pcm id %d", __func__,
                ip_channel_cnt, op_channel_cnt, pcm_device_id);
 
@@ -4136,11 +4151,10 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out)
         cust_ch_mixer_cfg[len++] = ip_channel_cnt;
         cust_ch_mixer_cfg[len++] = op_channel_cnt;
         for (i = 0; i < op_channel_cnt; i++) {
-             for (j = 0; j < ip_channel_cnt; j++) {
-                  cust_ch_mixer_cfg[len++] = Q14_GAIN_UNITY/ip_channel_cnt;
-             }
+            for (j = 0; j < ip_channel_cnt; j++) {
+                cust_ch_mixer_cfg[len++] = Q14_GAIN_UNITY/ip_channel_cnt;
+            }
         }
-
         err = mixer_ctl_set_array(ctl, cust_ch_mixer_cfg, len);
         if (err)
             ALOGE("%s: ERROR. Mixer ctl set failed", __func__);
@@ -4929,6 +4943,12 @@ void hdmi_passthrough_feature_init(bool is_feature_enabled)
             !(passthru_is_convert_supported =
                  (passthru_is_convert_supported_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_is_convert_supported")) ||
+            !(passthru_is_passt_supported =
+                  (passthru_is_passt_supported_t)dlsym(
+                             hdmi_passthru_lib_handle, "passthru_is_passt_supported")) ||
+            !(passthru_update_stream_configuration =
+                  (passthru_update_stream_configuration_t)dlsym(
+                             hdmi_passthru_lib_handle, "passthru_update_stream_configuration")) ||
             !(passthru_is_passthrough_stream =
                  (passthru_is_passthrough_stream_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_is_passthrough_stream")) ||
@@ -4959,26 +4979,26 @@ void hdmi_passthrough_feature_init(bool is_feature_enabled)
             !(passthru_set_parameters =
                  (passthru_set_parameters_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_set_parameters")) ||
-            (passthru_is_enabled =
+            !(passthru_is_enabled =
                  (passthru_is_enabled_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_is_enabled")) ||
-            (passthru_is_active =
+            !(passthru_is_active =
                  (passthru_is_active_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_is_active")) ||
-            (passthru_should_standby =
+            !(passthru_should_standby =
                  (passthru_should_standby_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_should_standby")) ||
-            (passthru_get_channel_count =
+            !(passthru_get_channel_count =
                  (passthru_get_channel_count_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_get_channel_count")) ||
-            (passthru_update_dts_stream_configuration =
+            !(passthru_update_dts_stream_configuration =
                  (passthru_update_dts_stream_configuration_t)dlsym(
                             hdmi_passthru_lib_handle,
                             "passthru_update_dts_stream_configuration")) ||
-            (passthru_is_direct_passthrough =
+            !(passthru_is_direct_passthrough =
                  (passthru_is_direct_passthrough_t)dlsym(
                             hdmi_passthru_lib_handle, "passthru_is_direct_passthrough")) ||
-            (passthru_is_supported_backend_edid_cfg =
+            !(passthru_is_supported_backend_edid_cfg =
                  (passthru_is_supported_backend_edid_cfg_t)dlsym(
                             hdmi_passthru_lib_handle,
                             "passthru_is_supported_backend_edid_cfg"))) {
@@ -5013,6 +5033,8 @@ feature_disabled:
 
     passthru_init = NULL;
     passthru_is_convert_supported = NULL;
+    passthru_is_passt_supported = NULL;
+    passthru_update_stream_configuration = NULL;
     passthru_is_passthrough_stream = NULL;
     passthru_get_buffer_size = NULL;
     passthru_set_volume = NULL;
@@ -5111,10 +5133,10 @@ static void *batt_listener_lib_handle = NULL;
 typedef void (*batt_listener_init_t)(battery_status_change_fn_t);
 static batt_listener_init_t batt_listener_init;
 
-typedef void (*batt_listener_deinit_t)();
+typedef void (*batt_listener_deinit_t)(void);
 static batt_listener_deinit_t batt_listener_deinit;
 
-typedef bool (*batt_prop_is_charging_t)();
+typedef bool (*batt_prop_is_charging_t)(void);
 static batt_prop_is_charging_t batt_prop_is_charging;
 
 void battery_listener_feature_init(bool is_feature_enabled)
@@ -5171,88 +5193,19 @@ bool audio_extn_battery_properties_is_charging()
 }
 // END: BATTERY_LISTENER ================================================================
 
-// START: HiFi Filter Feature ============================================================
-void audio_extn_enable_hifi_filter(struct audio_device *adev, bool value)
+// START: QUAD SPEAKER ============================================================
+bool audio_extn_is_quad_speaker_enabled()
 {
-    const char *mixer_ctl_name = "HiFi Filter";
-    struct mixer_ctl *ctl = NULL;
-    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
-    if (!ctl) {
-        ALOGE("%s: Could not get ctl for mixer cmd - %s, using default control",
-              __func__, mixer_ctl_name);
-        return;
-    } else {
-        mixer_ctl_set_value(ctl, 0, value);
-        ALOGD("%s: mixer_value set %d", __func__, value);
-    }
-    return;
+    return audio_extn_quad_speaker_enabled;
 }
 
-void audio_extn_hifi_filter_set_params(struct str_parms *parms,
-                                        char *value, int len)
+void quad_speaker_feature_init(bool is_feature_enabled)
 {
-    int ret = 0;
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER, value,len);
-    if (ret >= 0) {
-        if (value && !strncmp(value, "true", sizeof("true")))
-            audio_extn_hifi_filter_enabled = true;
-        else
-            audio_extn_hifi_filter_enabled = false;
-        str_parms_del(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER);
-    }
+    audio_extn_quad_speaker_enabled = is_feature_enabled;
+    ALOGD("%s: ---- Feature QUAD_SPEAKER is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
 }
 
-bool audio_extn_hifi_check_usecase_params(int sample_rate, int usecase)
-{
-    if (sample_rate != 48000 && sample_rate != 44100)
-        return false;
-    if (usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY || usecase == USECASE_AUDIO_PLAYBACK_ULL)
-        return false;
-    return true;
-}
-
-bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev, struct stream_out *out,
-                                   snd_device_t snd_device, char *codec_variant,
-                                   int channels, int usecase_init)
-{
-    int na_mode = platform_get_native_support();
-    struct audio_usecase *uc = NULL;
-    struct listnode *node = NULL;
-    bool hifi_active = false;
-
-    if (audio_extn_hifi_filter_enabled) {
-        /*Restricting the feature for Tavil and WCD9375 codecs only*/
-        if ((strstr(codec_variant, "WCD9385") || strstr(codec_variant, "WCD9375"))
-            && (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP || na_mode ==
-                       NATIVE_AUDIO_MODE_TRUE_44_1) && channels <=2) {
-            /*Upsampling 8 time should be restricited to headphones playback only */
-            if (snd_device == SND_DEVICE_OUT_HEADPHONES
-                || snd_device == SND_DEVICE_OUT_HEADPHONES_44_1
-                || snd_device == SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER
-                || usecase_init) {
-                if (audio_extn_hifi_check_usecase_params(out->sample_rate,
-                    out->usecase) && !usecase_init)
-                    return true;
-
-                list_for_each(node, &adev->usecase_list) {
-                    /* checking if hifi_filter is already active to set */
-                    /* concurrent playback sessions with hifi_filter enabled*/
-                    uc = node_to_item(node, struct audio_usecase, list);
-                    struct stream_out *curr_out = (struct stream_out*) uc->stream.out;
-                    if (uc->type == PCM_PLAYBACK && curr_out
-                        && audio_extn_hifi_check_usecase_params(
-                        curr_out->sample_rate, curr_out->usecase) &&
-                        (curr_out->channel_mask == AUDIO_CHANNEL_OUT_STEREO ||
-                        curr_out->channel_mask == AUDIO_CHANNEL_OUT_MONO))
-                            hifi_active = true;
-                }
-            }
-        }
-    }
-    return hifi_active;
-}
-// END: HiFi Filter Feature ==============================================================
-
+// END: QUAD SPEAKER ============================================================
 // START: AUDIOZOOM_FEATURE =====================================================================
 #ifdef __LP64__
 #define AUDIOZOOM_LIB_PATH "/vendor/lib64/libaudiozoom.so"
@@ -5594,6 +5547,9 @@ void audio_extn_feature_init()
     audiozoom_feature_init(
         property_get_bool("vendor.audio.feature.audiozoom.enable",
                            true));
+    quad_speaker_feature_init(
+        property_get_bool("vendor.audio.feature.quad_speaker.enable",
+                           false));
 }
 
 void audio_extn_set_parameters(struct audio_device *adev,

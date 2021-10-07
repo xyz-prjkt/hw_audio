@@ -46,6 +46,12 @@
         <device name="SND_DEVICE_IN_UNPROCESSED_THREE_MIC" acdb_id="145"/>
         <device name="SND_DEVICE_IN_UNPROCESSED_QUAD_MIC" acdb_id="146"/>
         <device name="SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC" acdb_id="147"/>
+        <device name="SND_DEVICE_IN_HANDSET_QMIC" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_HANDSET_6MIC" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_HANDSET_8MIC" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_EC_REF_LOOPBACK_MONO" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD" acdb_id="140"/>
     </acdb_ids>
     <module_ids>
         <aec>
@@ -100,9 +106,7 @@
         <usecase name="USECASE_AUDIO_PLAYBACK_VOIP" type="out" id="16" />
         <usecase name="USECASE_AUDIO_RECORD_VOIP" type="in" id="16" />
         <usecase name="USECASE_AUDIO_A2DP_ABR_FEEDBACK" type="in" id="35" />
-        <usecase name="USECASE_INCALL_REC_UPLINK" type="in" id="27" />
-        <usecase name="USECASE_INCALL_REC_DOWNLINK" type="in" id="27" />
-        <usecase name="USECASE_INCALL_REC_UPLINK_AND_DOWNLINK" type="in" id="27" />
+        <usecase name="USECASE_AUDIO_EC_REF_LOOPBACK" type="in" id="27"/>
     </pcm_ids>
     <config_params>
         <param key="spkr_1_tz_name" value="wsatz.13"/>
@@ -119,7 +123,11 @@
         <!-- In the below value string, the value indicates sidetone gain in dB -->
         <param key="usb_sidetone_gain" value="35"/>
         <param key="hfp_pcm_dev_id" value="36"/>
-    </config_params>
+        <param key="ffv_split_ec_ref_data" value="false"/>
+        <param key="ffv_ec_ref_channel_count" value="4"/>
+        <param key="ffv_channel_count" value="4"/>
+        <param key="ffvOn" value="false"/>
+   </config_params>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
         <gain_level_map db="-17.4" level="4"/>
@@ -148,6 +156,12 @@
         <device name="SND_DEVICE_OUT_SPEAKER_AND_BT_SCO" backend="speaker-and-bt-sco" interface="SLIMBUS_0_RX-and-SLIMBUS_7_RX"/>
         <device name="SND_DEVICE_OUT_SPEAKER_AND_BT_SCO_WB" backend="speaker-and-bt-sco-wb" interface="SLIMBUS_0_RX-and-SLIMBUS_7_RX"/>
     </backend_names>
+    <custom_mtmx_params param_id="1" in_channel_count="2" out_channel_count="4" usecase="USECASE_AUDIO_PLAYBACK_DEEP_BUFFER" snd_device="SND_DEVICE_OUT_SPEAKER_QUAD">
+        <custom_mtmx_param_coeffs out_channel_index="0"  values="16384 0"/>
+        <custom_mtmx_param_coeffs out_channel_index="1"  values="0 16384"/>
+        <custom_mtmx_param_coeffs out_channel_index="2"  values="16384 0"/>
+        <custom_mtmx_param_coeffs out_channel_index="3"  values="0 16384"/>
+    </custom_mtmx_params>
     <!-- below values are for ref purpose to OEM, doesn't contain actual hardware info on MTP -->
     <microphone_characteristics>
         <microphone valid_mask="31" device_id="builtin_mic_1" type="AUDIO_DEVICE_IN_BUILTIN_MIC" address="bottom" location="AUDIO_MICROPHONE_LOCATION_MAINBODY"

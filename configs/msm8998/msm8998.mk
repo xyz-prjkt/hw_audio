@@ -48,7 +48,7 @@ AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
 AUDIO_FEATURE_ENABLED_FLUENCE := true
 AUDIO_FEATURE_ENABLED_HDMI_EDID := true
 AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH := true
-#AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
+AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
 AUDIO_FEATURE_ENABLED_DISPLAY_PORT := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_HFP := true
@@ -66,6 +66,14 @@ BOARD_SUPPORTS_QAHW := false
 AUDIO_FEATURE_ENABLED_RAS := true
 AUDIO_FEATURE_ENABLED_DYNAMIC_LOG := true
 AUDIO_FEATURE_ENABLED_SND_MONITOR := true
+AUDIO_FEATURE_ENABLED_MS12_ARM := true
+AUDIO_FEATURE_ENABLED_QAF := true
+AUDIO_FEATURE_ENABLED_MS12_SECURITY := true
+MM_AUDIO_IP_HDLR_ENABLED := true
+AUDIO_FEATURE_ENABLED_QAP := true
+BOARD_SUPPORTS_QAHW := true
+AUDIO_FEATURE_ENABLED_A2DP_DECODERS := true
+
 ##AUDIO_FEATURE_FLAGS
 
 #Audio Specific device overlays
@@ -150,7 +158,10 @@ persist.vendor.audio.ras.enabled=false
 
 #Buffer size in kbytes for compress offload playback
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.buffer.size.kb=32
+vendor.audio.offload.buffer.size.kb=24
+
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.min.duration.secs=5
 
 #Enable offload audio video playback by default
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -179,11 +190,11 @@ vendor.audio.dolby.ds2.hardbypass=false
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.multiple.enabled=false
+vendor.audio.offload.multiple.enabled=true
 
 #Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.passthrough=false
+vendor.audio.offload.passthrough=true
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -306,6 +317,40 @@ vendor.audio.feature.vbat.enable=true \
 vendor.audio.feature.wsa.enable=false \
 vendor.audio.feature.audiozoom.enable=false \
 vendor.audio.feature.snd_mon.enable=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.enabled=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.dts_m8=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.library=/vendor/lib/libdolby_ms12_wrapper.so
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.reencode=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.passthrough=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.hdmi.out=ddp
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.msmd=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.qap.ecref=off
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.output.block.handling=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.pauseramp.duration =20
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.volumeramp.duration=20
+vendor.audio.keep_alive.disabled=false
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
